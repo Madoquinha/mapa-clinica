@@ -1,0 +1,812 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventário de TI - Mapeamento de Ativos</title>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <!-- Font Awesome (Ícones) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #f4f6f9; color: #333; padding: 20px; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        h1 { margin-bottom: 20px; color: #2c3e50; text-align: center; }
+
+        .topo-app {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .topo-app h1 { margin-bottom: 0; text-align: left; }
+        .usuario-info { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; color: #34495e; }
+        .btn-sair {
+            background-color: #e74c3c; color: white; border: none;
+            padding: 8px 14px; border-radius: 5px; cursor: pointer; font-weight: 600;
+            transition: background 0.2s;
+        }
+        .btn-sair:hover { background-color: #c0392b; }
+
+        /* Layout Grid: Form à esquerda e Mapa à direita */
+        .painel-principal {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        /* Formulário de Cadastro */
+        .card-formulario {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border: 1px solid #e1e8ed;
+            height: fit-content;
+        }
+
+        .card-formulario h2 {
+            font-size: 1.1rem;
+            color: #2c3e50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .form-group { margin-bottom: 12px; }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #34495e;
+            margin-bottom: 4px;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 8px 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 0.9rem;
+            outline: none;
+        }
+
+        .form-group input:focus, .form-group select:focus { border-color: #3498db; }
+
+        .btn-salvar {
+            width: 100%;
+            background-color: #27ae60;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+
+        .btn-salvar:hover { background-color: #219150; }
+
+        .btn-cancelar {
+            width: 100%;
+            background-color: #95a5a6;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 5px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 8px;
+        }
+        .btn-cancelar:hover { background-color: #7f8c8d; }
+
+        /* Fundo claro do mapa */
+        #mapa {
+            width: 100%;
+            height: 650px;
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        /* Estilização das etiquetas das salas */
+        .sala-label {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid #7f8c8d;
+            color: #2c3e50;
+            font-weight: bold;
+            font-size: 11px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+        }
+
+        /* Painel da Tabela */
+        .painel-tabela {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            border: 1px solid #e1e8ed;
+        }
+
+        .painel-tabela h2 {
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+            color: #2c3e50;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+            background-color: #fff;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        th, td { padding: 12px 15px; border-bottom: 1px solid #e1e8ed; }
+
+        th {
+            background-color: #f8f9fa;
+            color: #34495e;
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 0.85rem;
+        }
+
+        tr:hover { background-color: #f1f4f7; }
+
+        /* Badge de Status */
+        .badge-sala {
+            background-color: #3498db;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+        }
+
+        .acoes-tabela { display: flex; gap: 8px; }
+        .btn-icone {
+            border: none; border-radius: 5px; width: 32px; height: 32px;
+            cursor: pointer; color: white; font-size: 0.85rem;
+            display: flex; align-items: center; justify-content: center;
+            transition: opacity 0.2s;
+        }
+        .btn-icone:hover { opacity: 0.85; }
+        .btn-editar { background-color: #f39c12; }
+        .btn-excluir { background-color: #e74c3c; }
+
+        /* Modal de edição */
+        .modal-overlay {
+            display: none;
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(44, 62, 80, 0.6);
+            z-index: 2000;
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.ativo { display: flex; }
+        .modal-card {
+            background: #fff; border-radius: 8px; padding: 24px;
+            width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+        }
+        .modal-card h2 {
+            font-size: 1.1rem; color: #2c3e50; margin-bottom: 15px;
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        /* Tela de login */
+        .login-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(135deg, #2c3e50, #3498db);
+            display: flex; align-items: center; justify-content: center;
+            z-index: 3000;
+        }
+        .login-card {
+            background: #fff; border-radius: 10px; padding: 34px 30px;
+            width: 320px; box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
+        }
+        .login-card i.fa-shield-halved { font-size: 2rem; color: #3498db; margin-bottom: 10px; }
+        .login-card h2 { color: #2c3e50; margin-bottom: 20px; font-size: 1.2rem; }
+        .login-card .form-group { text-align: left; }
+        .btn-entrar {
+            width: 100%; background-color: #3498db; color: white; border: none;
+            padding: 10px; border-radius: 5px; font-weight: bold; cursor: pointer;
+            margin-top: 6px; transition: background 0.2s;
+        }
+        .btn-entrar:hover { background-color: #2980b9; }
+        .login-erro {
+            color: #e74c3c; font-size: 0.82rem; margin-top: 8px; min-height: 16px;
+        }
+        .login-aviso {
+            font-size: 0.72rem; color: #95a5a6; margin-top: 14px; line-height: 1.4;
+        }
+
+        @media (max-width: 900px) {
+            .painel-principal { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ========================================== -->
+<!-- TELA DE LOGIN -->
+<!-- ========================================== -->
+<div class="login-overlay" id="login-overlay">
+    <div class="login-card">
+        <i class="fa-solid fa-shield-halved"></i>
+        <h2>Inventário de TI</h2>
+        <form id="form-login">
+            <div class="form-group">
+                <label for="login-usuario">Usuário</label>
+                <input type="text" id="login-usuario" placeholder="Usuário" required autocomplete="username">
+            </div>
+            <div class="form-group">
+                <label for="login-senha">Senha</label>
+                <input type="password" id="login-senha" placeholder="Senha" required autocomplete="current-password">
+            </div>
+            <button type="submit" class="btn-entrar"><i class="fa-solid fa-right-to-bracket"></i> Entrar</button>
+            <div class="login-erro" id="login-erro"></div>
+        </form>
+        <div class="login-aviso">Acesso restrito à equipe de TI.</div>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- APLICAÇÃO PRINCIPAL (oculta até o login) -->
+<!-- ========================================== -->
+<div class="container" id="app-container" style="display:none;">
+
+    <div class="topo-app">
+        <h1>📌 Mapeamento e Localização de Ativos de TI</h1>
+        <div class="usuario-info">
+            <span id="texto-usuario-logado"></span>
+            <button class="btn-sair" id="btn-sair"><i class="fa-solid fa-right-from-bracket"></i> Sair</button>
+        </div>
+    </div>
+
+    <div class="painel-principal">
+        <!-- Formulário para Adicionar Equipamentos -->
+        <div class="card-formulario">
+            <h2><i class="fa-solid fa-plus-circle"></i> Novo Equipamento</h2>
+            <form id="form-equipamento">
+                <div class="form-group">
+                    <label for="input-patrimonio">Patrimônio (ID)</label>
+                    <input type="text" id="input-patrimonio" placeholder="Ex: PAT-00500" required>
+                </div>
+                <div class="form-group">
+                    <label for="input-nome">Nome do Equipamento</label>
+                    <input type="text" id="input-nome" placeholder="Ex: PC - Recepção 02" required>
+                </div>
+                <div class="form-group">
+                    <label for="input-tipo">Tipo</label>
+                    <select id="input-tipo" required>
+                        <option value="Computador">Computador</option>
+                        <option value="Impressora">Impressora</option>
+                        <option value="Nobreak">Nobreak</option>
+                        <option value="Monitor">Monitor</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="input-modelo">Modelo</label>
+                    <input type="text" id="input-modelo" placeholder="Ex: Dell OptiPlex 3080">
+                </div>
+                <div class="form-group">
+                    <label for="input-piso">Piso Inicial</label>
+                    <select id="input-piso" required>
+                        <option value="Piso 2">Piso 2</option>
+                        <option value="Térreo">Térreo</option>
+                        <option value="Subsolo">Subsolo</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-salvar"><i class="fa-solid fa-floppy-disk"></i> Adicionar ao Mapa</button>
+            </form>
+        </div>
+
+        <!-- Div do Mapa -->
+        <div id="mapa"></div>
+    </div>
+
+    <!-- Tabela de Ativos -->
+    <div class="painel-tabela">
+        <h2><i class="fa-solid fa-list-check"></i> Registro Automático de Localizações</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Patrimônio (ID)</th>
+                    <th>Nome do Equipamento</th>
+                    <th>Tipo</th>
+                    <th>Modelo</th>
+                    <th>Piso</th>
+                    <th>Sala Atual</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="corpo-tabela">
+                <!-- Preenchido dinamicamente via JS -->
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- MODAL DE EDIÇÃO -->
+<!-- ========================================== -->
+<div class="modal-overlay" id="modal-editar">
+    <div class="modal-card">
+        <h2><i class="fa-solid fa-pen-to-square"></i> Editar Equipamento</h2>
+        <form id="form-editar">
+            <input type="hidden" id="edit-patrimonio-original">
+            <div class="form-group">
+                <label for="edit-patrimonio">Patrimônio (ID)</label>
+                <input type="text" id="edit-patrimonio" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-nome">Nome do Equipamento</label>
+                <input type="text" id="edit-nome" required>
+            </div>
+            <div class="form-group">
+                <label for="edit-tipo">Tipo</label>
+                <select id="edit-tipo" required>
+                    <option value="Computador">Computador</option>
+                    <option value="Impressora">Impressora</option>
+                    <option value="Nobreak">Nobreak</option>
+                    <option value="Monitor">Monitor</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="edit-modelo">Modelo</label>
+                <input type="text" id="edit-modelo">
+            </div>
+            <div class="form-group">
+                <label for="edit-piso">Piso</label>
+                <select id="edit-piso" required>
+                    <option value="Piso 2">Piso 2</option>
+                    <option value="Térreo">Térreo</option>
+                    <option value="Subsolo">Subsolo</option>
+                </select>
+            </div>
+            <button type="submit" class="btn-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar Alterações</button>
+            <button type="button" class="btn-cancelar" id="btn-cancelar-edicao">Cancelar</button>
+        </form>
+    </div>
+</div>
+
+<!-- Leaflet JS -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+// ==========================================
+// 0. AUTENTICAÇÃO (simples, ver aviso no chat)
+// ==========================================
+// ATENÇÃO: isto é uma checagem apenas no navegador (client-side).
+// Qualquer pessoa que veja o código-fonte consegue ler as credenciais.
+// Serve para impedir acesso casual, NÃO é segurança de verdade.
+// Para produção real, troque por um backend com autenticação de sessão.
+const CREDENCIAIS_VALIDAS = [
+    { usuario: "admin", senha: "ti2026" }
+];
+
+document.getElementById('form-login').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const usuario = document.getElementById('login-usuario').value.trim();
+    const senha = document.getElementById('login-senha').value;
+    const erroEl = document.getElementById('login-erro');
+
+    const valido = CREDENCIAIS_VALIDAS.some(c => c.usuario === usuario && c.senha === senha);
+
+    if (valido) {
+        document.getElementById('login-overlay').style.display = 'none';
+        document.getElementById('app-container').style.display = 'block';
+        document.getElementById('texto-usuario-logado').textContent = 'Olá, ' + usuario;
+        erroEl.textContent = '';
+        iniciarMapa();
+    } else {
+        erroEl.textContent = 'Usuário ou senha inválidos.';
+    }
+});
+
+document.getElementById('btn-sair').addEventListener('click', function () {
+    location.reload();
+});
+
+// ==========================================
+// 1. CONFIGURAÇÃO DO MAPA LEAFLET (CRS.Simple)
+// ==========================================
+const limitesBounds = [[0, 0], [1000, 1200]];
+
+let map, camadaSubsolo, camadaTerreo, camadaPiso1, camadaPiso2, pavimentos;
+let salas = [];
+
+function iniciarMapa() {
+    map = L.map('mapa', {
+        crs: L.CRS.Simple,
+        minZoom: -1,
+        maxZoom: 2,
+        maxBounds: limitesBounds
+    });
+
+    map.fitBounds(limitesBounds);
+
+    camadaSubsolo = L.layerGroup();
+    camadaTerreo = L.layerGroup();
+    camadaPiso1 = L.layerGroup();
+    camadaPiso2 = L.layerGroup().addTo(map);
+
+    pavimentos = {
+        "🔻 Subsolo": camadaSubsolo,
+        "🏢 Térreo": camadaTerreo,
+        "🔹 Piso 1": camadaPiso1,
+        "🔹 Piso 2": camadaPiso2
+    };
+
+    L.control.layers(pavimentos, null, { collapsed: false }).addTo(map);
+
+    definirSalas();
+
+    salas.forEach(s => {
+        s.poligono.bindTooltip(s.nome, { permanent: true, direction: 'center', className: 'sala-label' });
+        s.poligono.on('click', function (e) {
+            L.DomEvent.stopPropagation(e);
+            salaSelecionadaAtual = s.nome;
+            atualizarInterface();
+        });
+    });
+
+    map.on('click', function () {
+        salaSelecionadaAtual = null;
+        atualizarInterface();
+    });
+
+    map.on('baselayerchange', function() {
+        salaSelecionadaAtual = null;
+        atualizarInterface();
+    });
+
+    // Força o Leaflet a recalcular o tamanho agora que o container está visível
+    setTimeout(() => map.invalidateSize(), 100);
+
+    atualizarInterface();
+}
+
+function obterPavimentoAtivo() {
+    if (map.hasLayer(camadaSubsolo)) return "Subsolo";
+    if (map.hasLayer(camadaTerreo)) return "Térreo";
+    if (map.hasLayer(camadaPiso1)) return "Piso 1";
+    return "Piso 2";
+}
+
+// ==========================================
+// 2. DEFINIÇÃO DAS SALAS
+// ==========================================
+function definirSalas() {
+    salas = [];
+
+    // --- SUBSOLO ---
+    salas.push({ nome: "Almoxarifado", piso: "Subsolo", poligono: L.polygon([[350, 400], [600, 400], [600, 950], [350, 950]], { color: '#2c3e50', fillColor: '#bdc3c7', fillOpacity: 0.3 }).addTo(camadaSubsolo) });
+
+    // --- TÉRREO ---
+   // --- TÉRREO ---
+// --- TÉRREO ---
+salas.push(
+    // Topo / Entrada
+    { nome: "Concierge", piso: "Térreo", poligono: L.polygon([[880, 780], [970, 780], [970, 1000], [880, 1000]], { color: '#2c3e50', fillColor: '#7f8c8d', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Recepção", piso: "Térreo", poligono: L.polygon([[800, 330], [890, 330], [890, 700], [800, 700]], { color: '#2980b9', fillColor: '#3498db', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Triagem", piso: "Térreo", poligono: L.polygon([[670, 780], [850, 780], [850, 890], [670, 890]], { color: '#2c3e50', fillColor: '#bdc3c7', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+
+    // Coluna Esquerda
+    { nome: "Elo 1", piso: "Térreo", poligono: L.polygon([[700, 100], [780, 100], [780, 200], [700, 200]], { color: '#8e44ad', fillColor: '#9b59b6', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Cuid. Cirúrgico 2", piso: "Térreo", poligono: L.polygon([[610, 100], [690, 100], [690, 200], [610, 200]], { color: '#e67e22', fillColor: '#f39c12', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Exames 1", piso: "Térreo", poligono: L.polygon([[520, 100], [600, 100], [600, 200], [520, 200]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Elo 2", piso: "Térreo", poligono: L.polygon([[430, 100], [510, 100], [510, 200], [430, 200]], { color: '#8e44ad', fillColor: '#9b59b6', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Exames 4", piso: "Térreo", poligono: L.polygon([[340, 100], [420, 100], [420, 200], [340, 200]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+
+    // Coluna Central
+    { nome: "Cuid. Cirúrgico 1", piso: "Térreo", poligono: L.polygon([[550, 260], [630, 260], [630, 360], [550, 360]], { color: '#e67e22', fillColor: '#f39c12', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Laser 2", piso: "Térreo", poligono: L.polygon([[460, 260], [540, 260], [540, 360], [460, 360]], { color: '#c0392b', fillColor: '#e74c3c', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Exames 3", piso: "Térreo", poligono: L.polygon([[370, 260], [450, 260], [450, 360], [370, 360]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Sala sem Nome", piso: "Térreo", poligono: L.polygon([[280, 260], [360, 260], [360, 360], [280, 360]], { color: '#7f8c8d', fillColor: '#95a5a6', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+
+    // Consultórios (Coluna Direita)
+    { nome: "Consultório 1", piso: "Térreo", poligono: L.polygon([[710, 640], [780, 640], [780, 740], [710, 740]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Consultório 2", piso: "Térreo", poligono: L.polygon([[630, 640], [700, 640], [700, 740], [630, 740]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Consultório 3", piso: "Térreo", poligono: L.polygon([[550, 640], [620, 640], [620, 740], [550, 740]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Consultório 4", piso: "Térreo", poligono: L.polygon([[470, 640], [540, 640], [540, 740], [470, 740]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Consultório 5", piso: "Térreo", poligono: L.polygon([[390, 640], [460, 640], [460, 740], [390, 740]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Consultório 6", piso: "Térreo", poligono: L.polygon([[310, 640], [380, 640], [380, 740], [310, 740]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+
+    // Parte Inferior (Posições descoladas para evitar colisão)
+    { nome: "Corpo Clínico", piso: "Térreo", poligono: L.polygon([[90, 250], [240, 250], [240, 440], [90, 440]], { color: '#2c3e50', fillColor: '#34495e', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "ARPA", piso: "Térreo", poligono: L.polygon([[170, 810], [290, 810], [290, 950], [170, 950]], { color: '#d35400', fillColor: '#e67e22', fillOpacity: 0.3 }).addTo(camadaTerreo) },
+    { nome: "Recepção Olhar", piso: "Térreo", poligono: L.polygon([[20, 110], [80, 110], [80, 340], [20, 340]], { color: '#2980b9', fillColor: '#3498db', fillOpacity: 0.3 }).addTo(camadaTerreo) }
+);
+    // --- PISO 1 ---
+// --- PISO 1 ---
+// --- PISO 1 ---
+salas.push(
+    // Área de Fundo do Centro Cirúrgico (declarado primeiro para ficar ao fundo)
+    { nome: "Centro Cirúrgico", piso: "Piso 1", poligono: L.polygon([[300, 0], [590, 0], [590, 730], [300, 730]], { color: '#7f8c8d', fillColor: '#95a5a6', fillOpacity: 0.15, dashArray: '5, 5' }).addTo(camadaPiso1).bringToBack() },
+
+    // Bloco Superior
+    { nome: "Recepção CC HO", piso: "Piso 1", poligono: L.polygon([[800, 330], [1000, 330], [1000, 800], [800, 800]], { color: '#2980b9', fillColor: '#3498db', fillOpacity: 0.3 }).addTo(camadaPiso1) },
+    { nome: "Triagem CC", piso: "Piso 1", poligono: L.polygon([[600, 330], [700, 330], [700, 540], [600, 540]], { color: '#2c3e50', fillColor: '#bdc3c7', fillOpacity: 0.3 }).addTo(camadaPiso1) },
+    { nome: "Sala de Exames 07", piso: "Piso 1", poligono: L.polygon([[650, 730], [780, 730], [780, 1000], [650, 1000]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaPiso1) },
+
+    // Salas Internas do Centro Cirúrgico (desenhadas por cima)
+    { nome: "Sala 03", piso: "Piso 1", poligono: L.polygon([[470, 0], [590, 0], [590, 270], [470, 270]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.4 }).addTo(camadaPiso1) },
+    { nome: "Sala 01", piso: "Piso 1", poligono: L.polygon([[470, 270], [590, 270], [590, 540], [470, 540]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.4 }).addTo(camadaPiso1) },
+    { nome: "Sala 02", piso: "Piso 1", poligono: L.polygon([[310, 270], [440, 270], [440, 540], [310, 540]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.4 }).addTo(camadaPiso1) },
+
+    // Coluna Direita
+    { nome: "Antiga Triagem CC", piso: "Piso 1", poligono: L.polygon([[520, 730], [590, 730], [590, 1000], [520, 1000]], { color: '#2c3e50', fillColor: '#bdc3c7', fillOpacity: 0.3 }).addTo(camadaPiso1) },
+    { nome: "RPA", piso: "Piso 1", poligono: L.polygon([[410, 730], [520, 730], [520, 1000], [410, 1000]], { color: '#d35400', fillColor: '#e67e22', fillOpacity: 0.3 }).addTo(camadaPiso1) },
+    { nome: "CME", piso: "Piso 1", poligono: L.polygon([[310, 730], [360, 730], [360, 1000], [310, 1000]], { color: '#8e44ad', fillColor: '#9b59b6', fillOpacity: 0.3 }).addTo(camadaPiso1) },
+
+    // Bloco Inferior
+    { nome: "CPD 02", piso: "Piso 1", poligono: L.polygon([[160, 380], [240, 380], [240, 540], [160, 540]], { color: '#27ae60', fillColor: '#2ecc71', fillOpacity: 0.3 }).addTo(camadaPiso1) },
+    { nome: "Farmácia", piso: "Piso 1", poligono: L.polygon([[140, 730], [270, 730], [270, 930], [140, 930]], { color: '#c0392b', fillColor: '#e74c3c', fillOpacity: 0.3 }).addTo(camadaPiso1) },
+    { nome: "TI", piso: "Piso 1", poligono: L.polygon([[20, 730], [100, 730], [100, 1000], [20, 1000]], { color: '#27ae60', fillColor: '#2ecc71', fillOpacity: 0.3 }).addTo(camadaPiso1) },
+    { nome: "Recepção CC IO", piso: "Piso 1", poligono: L.polygon([[-70, 380], [30, 380], [30, 730], [-70, 730]], { color: '#2980b9', fillColor: '#3498db', fillOpacity: 0.3 }).addTo(camadaPiso1) }
+);
+// --- PISO 2 ---
+    salas.push(
+        { nome: "Faturamento", piso: "Piso 2", poligono: L.polygon([[720, 80], [800, 80], [800, 300], [720, 300]], { color: '#2980b9', fillColor: '#3498db', fillOpacity: 0.3 }).addTo(camadaPiso2) },
+        { nome: "Call Center", piso: "Piso 2", poligono: L.polygon([[720, 310], [800, 310], [800, 460], [720, 460]], { color: '#2980b9', fillColor: '#3498db', fillOpacity: 0.3 }).addTo(camadaPiso2) },
+        { nome: "Biblioteca", piso: "Piso 2", poligono: L.polygon([[430, 80], [700, 80], [700, 200], [610, 200], [610, 240], [430, 240]], { color: '#8e44ad', fillColor: '#9b59b6', fillOpacity: 0.3 }).addTo(camadaPiso2) },
+        { nome: "Financeiro", piso: "Piso 2", poligono: L.polygon([[540, 260], [680, 260], [680, 460], [540, 460]], { color: '#d35400', fillColor: '#e67e22', fillOpacity: 0.3 }).addTo(camadaPiso2) },
+        { nome: "Copa", piso: "Piso 2", poligono: L.polygon([[430, 260], [520, 260], [520, 460], [430, 460]], { color: '#27ae60', fillColor: '#2ecc71', fillOpacity: 0.3 }).addTo(camadaPiso2) },
+        { nome: "RH / DP", piso: "Piso 2", poligono: L.polygon([[300, 260], [410, 260], [410, 460], [300, 460]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.3 }).addTo(camadaPiso2) },
+        { nome: "NIDI", piso: "Piso 2", poligono: L.polygon([[220, 80], [410, 80], [410, 240], [220, 240]], { color: '#7f8c8d', fillColor: '#95a5a6', fillOpacity: 0.3 }).addTo(camadaPiso2) },
+        { nome: "Contabilidade", piso: "Piso 2", poligono: L.polygon([[80, 80], [200, 80], [200, 310], [80, 310]], { color: '#2c3e50', fillColor: '#34495e', fillOpacity: 0.3 }).addTo(camadaPiso2) },
+        { nome: "CPD 2", piso: "Piso 2", poligono: L.polygon([[490, 530], [690, 530], [690, 690], [490, 690]], { color: '#8e44ad', fillColor: '#9b59b6', fillOpacity: 0.3 }).addTo(camadaPiso2) },
+        { nome: "Auditório", piso: "Piso 2", poligono: L.polygon([[80, 530], [440, 530], [440, 860], [80, 860]], { color: '#f39c12', fillColor: '#f1c40f', fillOpacity: 0.3 }).addTo(camadaPiso2) }
+    );
+}
+
+// ==========================================
+// 3. AUXILIARES E ÍCONES
+// ==========================================
+function pontoEmPoligono(lat, lng, vs) {
+    let inside = false;
+    for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) {
+        const xi = vs[i][0], yi = vs[i][1];
+        const xj = vs[j][0], yj = vs[j][1];
+        const intersect = ((yi > lng) !== (yj > lng)) && (lat < (xj - xi) * (lng - yi) / (yj - yi) + xi);
+        if (intersect) inside = !inside;
+    }
+    return inside;
+}
+
+function identificarSala(lat, lng, pisoAtual) {
+    let salaEncontrada = "Fora de Sala / Corredor";
+    salas.filter(s => s.piso === pisoAtual).forEach(s => {
+        const pts = s.poligono.getLatLngs()[0].map(pt => [pt.lat, pt.lng]);
+        if (pontoEmPoligono(lat, lng, pts)) {
+            salaEncontrada = s.nome;
+        }
+    });
+    return salaEncontrada;
+}
+
+function criarIconeEquipamento(tipo) {
+    const tipos = {
+        'Computador': 'fa-desktop',
+        'Impressora': 'fa-print',
+        'Nobreak': 'fa-plug',
+        'Monitor': 'fa-display'
+    };
+    const iconeFa = tipos[tipo] || 'fa-box';
+
+    return L.divIcon({
+        className: 'custom-leaflet-icon',
+        html: `<div style="background-color: #2c3e50; color: #fff; padding: 6px; border-radius: 50%; border: 2px solid #fff; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; box-shadow: 0 3px 6px rgba(0,0,0,0.3);">
+                <i class="fa-solid ${iconeFa}" style="font-size: 14px;"></i>
+               </div>`,
+        iconSize: [32, 32],
+        iconAnchor: [16, 16]
+    });
+}
+
+// ==========================================
+// 4. ESTRUTURA E RENDERIZAÇÃO
+// ==========================================
+const dadosPadrao = [
+    { patrimônio: "PAT-00102", nome: "PC - Faturamento 01", tipo: "Computador", modelo: "Dell OptiPlex 3080", piso: "Piso 2", sala: "Faturamento", coords: [750, 200] },
+    { patrimônio: "PAT-00205", nome: "Impressora - RH", tipo: "Impressora", modelo: "HP LaserJet M404", piso: "Piso 2", sala: "RH / DP", coords: [350, 350] }
+];
+
+let listaEquipamentos = JSON.parse(localStorage.getItem('inventario_ti')) || dadosPadrao;
+let salaSelecionadaAtual = null;
+let marcadoresMapa = [];
+
+function salvarNoStorage() {
+    localStorage.setItem('inventario_ti', JSON.stringify(listaEquipamentos));
+}
+
+function atualizarInterface() {
+    marcadoresMapa.forEach(m => map.removeLayer(m));
+    marcadoresMapa = [];
+
+    const tabelaCorpo = document.getElementById('corpo-tabela');
+    if (tabelaCorpo) tabelaCorpo.innerHTML = '';
+
+    const pisoAtual = obterPavimentoAtivo();
+
+    const equipamentosExibidos = listaEquipamentos.filter(eq => {
+        const noPiso = eq.piso === pisoAtual;
+        return salaSelecionadaAtual ? (noPiso && eq.sala === salaSelecionadaAtual) : noPiso;
+    });
+
+    equipamentosExibidos.forEach(eq => {
+        const camadaDestino = pisoAtual === "Subsolo" ? camadaSubsolo :
+                              pisoAtual === "Térreo" ? camadaTerreo :
+                              pisoAtual === "Piso 1" ? camadaPiso1 : camadaPiso2;
+
+        const marker = L.marker(eq.coords, {
+            icon: criarIconeEquipamento(eq.tipo),
+            draggable: true
+        }).addTo(camadaDestino);
+
+        marker.bindTooltip(`<b>${eq.patrimônio || ''}</b><br>${eq.nome || ''}`, {
+            permanent: false, direction: 'top', offset: [0, -15]
+        });
+
+        marker.on('dragend', function (e) {
+            const pos = e.target.getLatLng();
+            const novoPiso = obterPavimentoAtivo();
+            eq.piso = novoPiso;
+            eq.sala = identificarSala(pos.lat, pos.lng, novoPiso);
+            eq.coords = [Math.round(pos.lat), Math.round(pos.lng)];
+
+            salvarNoStorage();
+            atualizarInterface();
+        });
+
+        marcadoresMapa.push(marker);
+    });
+
+    if (tabelaCorpo) {
+        listaEquipamentos.forEach(eq => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>${eq.patrimônio || '-'}</b></td>
+                <td>${eq.nome || '-'}</td>
+                <td>${eq.tipo || '-'}</td>
+                <td>${eq.modelo || '-'}</td>
+                <td>${eq.piso || '-'}</td>
+                <td><span class="badge-sala">${eq.sala || 'Fora de Sala'}</span></td>
+                <td>
+                    <div class="acoes-tabela">
+                        <button class="btn-icone btn-editar" title="Editar" onclick="editarEquipamento('${eq.patrimônio}')"><i class="fa-solid fa-pen"></i></button>
+                        <button class="btn-icone btn-excluir" title="Excluir" onclick="excluirEquipamento('${eq.patrimônio}')"><i class="fa-solid fa-trash"></i></button>
+                    </div>
+                </td>
+            `;
+            tabelaCorpo.appendChild(tr);
+        });
+    }
+}
+
+// ==========================================
+// 5. CADASTRO DE NOVO EQUIPAMENTO
+// ==========================================
+document.getElementById('form-equipamento').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const patrimonioInput = document.getElementById('input-patrimonio').value.trim();
+    const nomeInput = document.getElementById('input-nome').value.trim();
+    const tipoInput = document.getElementById('input-tipo').value;
+    const modeloInput = document.getElementById('input-modelo').value.trim();
+    const pisoInput = document.getElementById('input-piso').value;
+
+    if (listaEquipamentos.some(eq => eq.patrimônio === patrimonioInput)) {
+        alert('Já existe um equipamento com esse número de patrimônio.');
+        return;
+    }
+
+    // Coloca o novo marcador no centro aproximado do piso
+    const coordsIniciais = [500, 500];
+    const salaInicial = identificarSala(coordsIniciais[0], coordsIniciais[1], pisoInput);
+
+    const novoEquipamento = {
+        patrimônio: patrimonioInput,
+        nome: nomeInput,
+        tipo: tipoInput,
+        modelo: modeloInput || '-',
+        piso: pisoInput,
+        sala: salaInicial,
+        coords: coordsIniciais
+    };
+
+    listaEquipamentos.push(novoEquipamento);
+    salvarNoStorage();
+
+    this.reset();
+    atualizarInterface();
+});
+
+// ==========================================
+// 6. EDITAR EQUIPAMENTO
+// ==========================================
+function editarEquipamento(patrimonio) {
+    const eq = listaEquipamentos.find(e => e.patrimônio === patrimonio);
+    if (!eq) return;
+
+    document.getElementById('edit-patrimonio-original').value = eq.patrimônio;
+    document.getElementById('edit-patrimonio').value = eq.patrimônio;
+    document.getElementById('edit-nome').value = eq.nome;
+    document.getElementById('edit-tipo').value = eq.tipo;
+    document.getElementById('edit-modelo').value = eq.modelo === '-' ? '' : eq.modelo;
+    document.getElementById('edit-piso').value = eq.piso;
+
+    document.getElementById('modal-editar').classList.add('ativo');
+}
+
+function fecharModalEdicao() {
+    document.getElementById('modal-editar').classList.remove('ativo');
+}
+
+document.getElementById('btn-cancelar-edicao').addEventListener('click', fecharModalEdicao);
+
+document.getElementById('form-editar').addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const patrimonioOriginal = document.getElementById('edit-patrimonio-original').value;
+    const novoPatrimonio = document.getElementById('edit-patrimonio').value.trim();
+
+    if (novoPatrimonio !== patrimonioOriginal && listaEquipamentos.some(eq => eq.patrimônio === novoPatrimonio)) {
+        alert('Já existe um equipamento com esse número de patrimônio.');
+        return;
+    }
+
+    const eq = listaEquipamentos.find(e => e.patrimônio === patrimonioOriginal);
+    if (!eq) return;
+
+    const pisoNovo = document.getElementById('edit-piso').value;
+    if (pisoNovo !== eq.piso) {
+        // Piso mudou: recalcula a sala com base nas coordenadas atuais no novo piso
+        eq.sala = identificarSala(eq.coords[0], eq.coords[1], pisoNovo);
+    }
+
+    eq.patrimônio = novoPatrimonio;
+    eq.nome = document.getElementById('edit-nome').value.trim();
+    eq.tipo = document.getElementById('edit-tipo').value;
+    eq.modelo = document.getElementById('edit-modelo').value.trim() || '-';
+    eq.piso = pisoNovo;
+
+    salvarNoStorage();
+    fecharModalEdicao();
+    atualizarInterface();
+});
+
+// ==========================================
+// 7. EXCLUIR EQUIPAMENTO
+// ==========================================
+function excluirEquipamento(patrimonio) {
+    const eq = listaEquipamentos.find(e => e.patrimônio === patrimonio);
+    if (!eq) return;
+
+    const confirmado = confirm(`Excluir o equipamento "${eq.nome}" (${eq.patrimônio})?`);
+    if (!confirmado) return;
+
+    listaEquipamentos = listaEquipamentos.filter(e => e.patrimônio !== patrimonio);
+    salvarNoStorage();
+    atualizarInterface();
+}
+</script>
+
+</body>
+</html>
