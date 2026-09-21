@@ -69,3 +69,11 @@ Aplicação web completa para **gestão patrimonial visual, rastreamento físico
 1. **Clone o repositório:**
    ```bash
    git clone https://github.com/Madoquinha/mapa-clinica.git
+   
+   👩‍💻 Autoria e Direitos
+Projeto idealizado, desenvolvido e mantido por:
+
+Maria Eduarda Fernandes de Sousa
+GitHub: @Madoquinha
+
+© 2026 Maria Eduarda Fernandes de Sousa. Todos os direitos reservados.

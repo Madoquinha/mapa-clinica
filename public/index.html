@@ -448,6 +448,19 @@
         }
         .btn-filtro-tipo.ativo i { color: #ffffff !important; }
 
+        .filtro-setor-select {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid var(--input-border);
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 0.85rem;
+            font-weight: 600;
+            outline: none;
+            max-width: 220px;
+        }
+        .filtro-setor-select:focus { border-color: #3498db; }
+
         table {
             width: 100%;
             border-collapse: collapse;
@@ -665,6 +678,42 @@
         .login-erro { color: #e74c3c; font-size: 0.82rem; margin-top: 8px; min-height: 16px; }
         .login-aviso { font-size: 0.72rem; color: #95a5a6; margin-top: 14px; line-height: 1.4; }
 
+        /* Resumo por Setor */
+        .painel-resumo-setor {
+            background-color: var(--bg-card);
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 15px var(--shadow-color);
+            border: 1px solid var(--border-color);
+            margin-bottom: 20px;
+        }
+        .painel-resumo-setor h2 {
+            font-size: 1.2rem;
+            color: var(--text-primary);
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .painel-resumo-setor .resumo-subtitulo {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            margin-bottom: 15px;
+        }
+        .tabela-resumo-setor-wrapper {
+            overflow-x: auto;
+        }
+        tr.linha-resumo-setor {
+            cursor: pointer;
+        }
+        tr.linha-resumo-setor:hover td {
+            background-color: var(--table-row-hover);
+        }
+        .col-total-setor {
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+
         @media (max-width: 950px) {
             .painel-principal, .grid-manutencao { grid-template-columns: 1fr; }
         }
@@ -724,6 +773,12 @@
             <i class="fa-solid fa-wrench"></i> Manutenção e Reparos 
             <span class="badge-aba" id="badge-contador-manutencao" style="display:none;">0</span>
         </button>
+        <button class="btn-aba" id="aba-btn-resumo" onclick="mudarAba('resumo')">
+            <i class="fa-solid fa-chart-simple"></i> Resumo por Setor
+        </button>
+        <button class="btn-aba" id="aba-btn-relatorios" onclick="mudarAba('relatorios')">
+            <i class="fa-solid fa-file-lines"></i> Relatórios
+        </button>
     </div>
 
     <!-- ABA 1: MAPEAMENTO -->
@@ -752,6 +807,10 @@
                     <div class="form-group">
                         <label for="input-modelo">Modelo</label>
                         <input type="text" id="input-modelo" placeholder="Ex: Dell OptiPlex 3080">
+                    </div>
+                    <div class="form-group">
+                        <label for="input-valor">Valor (R$)</label>
+                        <input type="number" id="input-valor" step="0.01" min="0" placeholder="Ex: 1500.00">
                     </div>
                     <div class="form-group">
                         <label for="input-piso">Piso Inicial</label>
@@ -802,7 +861,7 @@
                         <span>Computador</span>
                     </div>
                     <div class="legenda-item">
-                        <div class="legenda-icone" style="background-color:#8e44ad;"><i class="fa-solid fa-tv"></i></div>
+                        <div class="legenda-icone" style="background-color:#8e44ad;"><i class="fa-solid fa-desktop"></i></div>
                         <span>Monitor</span>
                     </div>
                     <div class="legenda-item">
@@ -828,7 +887,7 @@
                 </div>
             </div>
 
-            <!-- Filtro de Tipo em Pílulas -->
+            <!-- Filtro de Tipo em Pílulas + Filtro de Setor -->
             <div class="filtros-tipo-container">
                 <span class="filtro-tipo-label"><i class="fa-solid fa-filter"></i> Filtrar Tipo:</span>
                 <div class="filtros-tipo-botoes">
@@ -839,7 +898,7 @@
                         <i class="fa-solid fa-server" style="color:#2980b9;"></i> Computador (<span id="count-filtro-comp">0</span>)
                     </button>
                     <button class="btn-filtro-tipo" data-tipo="Monitor">
-                        <i class="fa-solid fa-tv" style="color:#8e44ad;"></i> Monitor (<span id="count-filtro-mon">0</span>)
+                        <i class="fa-solid fa-desktop" style="color:#8e44ad;"></i> Monitor (<span id="count-filtro-mon">0</span>)
                     </button>
                     <button class="btn-filtro-tipo" data-tipo="Impressora">
                         <i class="fa-solid fa-print" style="color:#e67e22;"></i> Impressora (<span id="count-filtro-imp">0</span>)
@@ -848,6 +907,11 @@
                         <i class="fa-solid fa-bolt" style="color:#d35400;"></i> Nobreak (<span id="count-filtro-nob">0</span>)
                     </button>
                 </div>
+
+                <span class="filtro-tipo-label" style="margin-left:10px;"><i class="fa-solid fa-building"></i> Setor:</span>
+                <select id="filtro-setor-select" class="filtro-setor-select">
+                    <option value="todos">Todos os Setores</option>
+                </select>
             </div>
 
             <table>
@@ -967,6 +1031,128 @@
         </div>
     </div>
 
+    <!-- ABA 3: RESUMO POR SETOR -->
+    <div id="aba-conteudo-resumo" style="display:none;">
+        <div class="painel-resumo-setor" style="margin-bottom:0;">
+            <h2><i class="fa-solid fa-chart-simple"></i> Resumo por Setor</h2>
+            <div class="resumo-subtitulo">Quantidade de cada tipo de ativo por setor — clique numa linha para ir até a tabela de registros já filtrada por aquele setor.</div>
+            <div class="tabela-resumo-setor-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Setor</th>
+                            <th>Piso</th>
+                            <th><i class="fa-solid fa-server" style="color:#2980b9;"></i> Computador</th>
+                            <th><i class="fa-solid fa-desktop" style="color:#8e44ad;"></i> Monitor</th>
+                            <th><i class="fa-solid fa-print" style="color:#e67e22;"></i> Impressora</th>
+                            <th><i class="fa-solid fa-bolt" style="color:#d35400;"></i> Nobreak</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpo-tabela-resumo-setor"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- ABA 4: RELATÓRIOS -->
+    <div id="aba-conteudo-relatorios" style="display:none;">
+        <div class="cards-resumo-manut">
+            <div class="card-stat">
+                <div class="card-stat-icon" style="background-color:#3498db;"><i class="fa-solid fa-cubes"></i></div>
+                <div class="card-stat-info">
+                    <h3 id="rel-stat-total-itens">0</h3>
+                    <p>Total de Ativos</p>
+                </div>
+            </div>
+            <div class="card-stat">
+                <div class="card-stat-icon" style="background-color:#27ae60;"><i class="fa-solid fa-sack-dollar"></i></div>
+                <div class="card-stat-info">
+                    <h3 id="rel-stat-valor-total">R$ 0,00</h3>
+                    <p>Valor Total do Inventário</p>
+                </div>
+            </div>
+            <div class="card-stat">
+                <div class="card-stat-icon" style="background-color:#f39c12;"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                <div class="card-stat-info">
+                    <h3 id="rel-stat-sem-valor">0</h3>
+                    <p>Itens Sem Valor Cadastrado</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="painel-resumo-setor">
+            <div class="tabela-cabecalho-filtros" style="margin-bottom:15px;">
+                <h2><i class="fa-solid fa-layer-group"></i> Totais por Tipo</h2>
+            </div>
+            <div class="tabela-resumo-setor-wrapper">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Quantidade</th>
+                            <th>Valor Total (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpo-tabela-relatorio-tipos"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="painel-resumo-setor">
+            <div class="tabela-cabecalho-filtros" style="margin-bottom:15px;">
+                <h2><i class="fa-solid fa-building"></i> Quantidade e Valor por Setor</h2>
+            </div>
+            <div class="tabela-resumo-setor-wrapper modal-corpo-scroll" style="max-height: 420px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Setor</th>
+                            <th>Piso</th>
+                            <th><i class="fa-solid fa-server" style="color:#2980b9;"></i> Computador</th>
+                            <th><i class="fa-solid fa-desktop" style="color:#8e44ad;"></i> Monitor</th>
+                            <th><i class="fa-solid fa-print" style="color:#e67e22;"></i> Impressora</th>
+                            <th><i class="fa-solid fa-bolt" style="color:#d35400;"></i> Nobreak</th>
+                            <th>Total</th>
+                            <th>Valor Total (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpo-tabela-relatorio-setores"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="painel-tabela">
+            <div class="tabela-cabecalho-filtros">
+                <h2><i class="fa-solid fa-list-check"></i> Listagem Completa com Valores</h2>
+                <div style="display:flex; gap:10px;">
+                    <button type="button" class="btn-topo" id="btn-exportar-excel" style="background-color:#1d6f42; color:white;">
+                        <i class="fa-solid fa-file-excel"></i> Exportar Excel
+                    </button>
+                    <button type="button" class="btn-topo" id="btn-exportar-pdf" style="background-color:#c0392b; color:white;">
+                        <i class="fa-solid fa-file-pdf"></i> Exportar PDF
+                    </button>
+                </div>
+            </div>
+            <div class="modal-corpo-scroll" style="max-height: 500px;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Patrimônio</th>
+                            <th>Nome</th>
+                            <th>Tipo</th>
+                            <th>Modelo</th>
+                            <th>Piso</th>
+                            <th>Setor</th>
+                            <th>Valor (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="corpo-tabela-relatorio-completo"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <!-- Rodapé no Final da Página -->
     <footer class="rodape-direitos">
         <p>© 2026 Sistema de Gestão e Mapeamento de TI</p>
@@ -1036,6 +1222,10 @@
                 <input type="text" id="edit-modelo">
             </div>
             <div class="form-group">
+                <label for="edit-valor">Valor (R$)</label>
+                <input type="number" id="edit-valor" step="0.01" min="0" placeholder="Ex: 1500.00">
+            </div>
+            <div class="form-group">
                 <label for="edit-piso">Piso</label>
                 <select id="edit-piso" required>
                     <option value="Piso 2">Piso 2</option>
@@ -1089,13 +1279,19 @@
 <!-- Leaflet JS -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
+<!-- SheetJS (exportação para Excel) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- jsPDF + AutoTable (exportação para PDF) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
 <script>
 // ==========================================
 // 0. CONFIGURAÇÕES GERAIS E TEMA
 // ==========================================
 const CONFIG_TIPOS = {
     'Computador': { icone: 'fa-server', cor: '#2980b9', label: 'Computador' },
-    'Monitor':    { icone: 'fa-tv',     cor: '#8e44ad', label: 'Monitor' },
+    'Monitor':    { icone: 'fa-desktop',     cor: '#8e44ad', label: 'Monitor' },
     'Impressora': { icone: 'fa-print',  cor: '#e67e22', label: 'Impressora' },
     'Nobreak':    { icone: 'fa-bolt',   cor: '#d35400', label: 'Nobreak' }
 };
@@ -1122,24 +1318,23 @@ if (localStorage.getItem('tema_escuro') === 'true') {
 }
 
 function mudarAba(nomeAba) {
-    const abaMapa = document.getElementById('aba-conteudo-mapa');
-    const abaManut = document.getElementById('aba-conteudo-manutencao');
-    const btnAbaMapa = document.getElementById('aba-btn-mapa');
-    const btnAbaManut = document.getElementById('aba-btn-manutencao');
+    const abas = {
+        mapa: { conteudo: document.getElementById('aba-conteudo-mapa'), botao: document.getElementById('aba-btn-mapa') },
+        manutencao: { conteudo: document.getElementById('aba-conteudo-manutencao'), botao: document.getElementById('aba-btn-manutencao') },
+        resumo: { conteudo: document.getElementById('aba-conteudo-resumo'), botao: document.getElementById('aba-btn-resumo') },
+        relatorios: { conteudo: document.getElementById('aba-conteudo-relatorios'), botao: document.getElementById('aba-btn-relatorios') }
+    };
 
-    if (nomeAba === 'mapa') {
-        abaMapa.style.display = 'block';
-        abaManut.style.display = 'none';
-        btnAbaMapa.classList.add('ativa');
-        btnAbaManut.classList.remove('ativa');
-        if (map) setTimeout(() => map.invalidateSize(), 100);
-    } else {
-        abaMapa.style.display = 'none';
-        abaManut.style.display = 'block';
-        btnAbaManut.classList.add('ativa');
-        btnAbaMapa.classList.remove('ativa');
-        atualizarPainelManutencao();
-    }
+    Object.keys(abas).forEach(chave => {
+        const ativa = chave === nomeAba;
+        abas[chave].conteudo.style.display = ativa ? 'block' : 'none';
+        abas[chave].botao.classList.toggle('ativa', ativa);
+    });
+
+    if (nomeAba === 'mapa' && map) setTimeout(() => map.invalidateSize(), 100);
+    if (nomeAba === 'manutencao') atualizarPainelManutencao();
+    if (nomeAba === 'resumo') atualizarResumoPorSetor();
+    if (nomeAba === 'relatorios') atualizarRelatorios();
 }
 
 // ==========================================
@@ -1184,6 +1379,7 @@ let historicoModificacoes = [];
 // Variáveis de Filtro da Tabela
 let filtroTipoSelecionado = 'todos';
 let textoBuscaTabela = '';
+let filtroSetorSelecionado = 'todos';
 
 function atualizarIndicadorSync(status, texto) {
     const el = document.getElementById('indicador-sync');
@@ -1223,12 +1419,27 @@ async function carregarDadosDoServidor() {
     }
 }
 
-async function salvarDadosNoServidor() {
-    atualizarIndicadorSync('salvando', 'Salvando no servidor...');
+let salvamentoEmAndamento = false;
+let salvamentoPendente = false;
 
+async function salvarDadosNoServidor() {
+    // O cache local é sempre atualizado na hora, mesmo que o servidor demore
     localStorage.setItem('inventario_ti', JSON.stringify(listaEquipamentos));
     localStorage.setItem('inventario_ti_manutencao', JSON.stringify(listaManutencoes));
     localStorage.setItem('inventario_ti_historico', JSON.stringify(historicoModificacoes));
+
+    // Se já existe um salvamento em andamento, não dispara outro em paralelo
+    // (isso evita a condição de corrida: dois salvamentos concorrentes podem
+    // chegar ao servidor fora de ordem e o mais antigo sobrescrever o mais novo).
+    // Só marca que, assim que o atual terminar, precisa salvar de novo — e esse
+    // próximo salvamento vai pegar o estado MAIS ATUAL na hora que for disparado.
+    if (salvamentoEmAndamento) {
+        salvamentoPendente = true;
+        return;
+    }
+
+    salvamentoEmAndamento = true;
+    atualizarIndicadorSync('salvando', 'Salvando no servidor...');
 
     try {
         const res = await fetch('api.php', {
@@ -1245,6 +1456,12 @@ async function salvarDadosNoServidor() {
     } catch (err) {
         console.error('Erro ao enviar para API:', err);
         atualizarIndicadorSync('erro', 'Erro ao salvar no servidor');
+    } finally {
+        salvamentoEmAndamento = false;
+        if (salvamentoPendente) {
+            salvamentoPendente = false;
+            salvarDadosNoServidor();
+        }
     }
 }
 
@@ -1264,6 +1481,11 @@ document.querySelectorAll('.btn-filtro-tipo').forEach(btn => {
 
 document.getElementById('filtro-busca-tabela').addEventListener('input', function (e) {
     textoBuscaTabela = e.target.value.toLowerCase().trim();
+    atualizarInterface();
+});
+
+document.getElementById('filtro-setor-select').addEventListener('change', function (e) {
+    filtroSetorSelecionado = e.target.value;
     atualizarInterface();
 });
 
@@ -1350,6 +1572,74 @@ function obterTamanhoIconePorZoom() {
     if (zoom === 0) return { size: 28, font: 12, anchor: 14 };
     if (zoom === 1) return { size: 36, font: 15, anchor: 18 };
     return { size: 44, font: 18, anchor: 22 };
+}
+
+// Distância mínima (em unidades do mapa) que dois ícones podem ficar um do outro
+// antes de serem considerados "empilhados" e precisarem ser afastados.
+const RAIO_MINIMO_ICONES = 16;
+
+// Cria um índice espacial vazio (grade de células do tamanho do raio mínimo).
+// Usado pra não precisar comparar cada ícone novo contra TODOS os outros já
+// posicionados (o que fica lento com muitos itens) — só compara com os que
+// caem nas células vizinhas, bem mais rápido mesmo com centenas de ícones.
+function criarIndiceEspacial() {
+    return new Map();
+}
+
+function chaveCelula(lat, lng) {
+    return Math.floor(lat / RAIO_MINIMO_ICONES) + ',' + Math.floor(lng / RAIO_MINIMO_ICONES);
+}
+
+function existeVizinhoPerto(indice, lat, lng) {
+    const cx = Math.floor(lat / RAIO_MINIMO_ICONES);
+    const cy = Math.floor(lng / RAIO_MINIMO_ICONES);
+    for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+            const lista = indice.get((cx + dx) + ',' + (cy + dy));
+            if (!lista) continue;
+            for (let i = 0; i < lista.length; i++) {
+                if (Math.hypot(lista[i][0] - lat, lista[i][1] - lng) < RAIO_MINIMO_ICONES) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+function registrarNoIndice(indice, lat, lng) {
+    const chave = chaveCelula(lat, lng);
+    if (!indice.has(chave)) indice.set(chave, []);
+    indice.get(chave).push([lat, lng]);
+}
+
+// Recebe o equipamento e um índice espacial das posições já usadas nesta
+// renderização, e devolve uma posição de EXIBIÇÃO que não sobrepõe nenhuma
+// delas. Não altera eq.coords (a posição salva do equipamento continua a
+// mesma) — é só um ajuste visual pra não empilhar ícones um em cima do outro.
+function calcularPosicaoSemSobreposicao(eq, indiceEspacial) {
+    let [lat, lng] = eq.coords;
+
+    if (!existeVizinhoPerto(indiceEspacial, lat, lng)) {
+        registrarNoIndice(indiceEspacial, lat, lng);
+        return [lat, lng];
+    }
+
+    // Espiral crescente ao redor da posição original até achar um espaço livre
+    for (let tentativa = 1; tentativa <= 40; tentativa++) {
+        const angulo = tentativa * 2.4; // ~137.5°, espaçamento tipo espiral áurea
+        const raio = RAIO_MINIMO_ICONES * (0.9 + tentativa * 0.35);
+        const novoLat = eq.coords[0] + raio * Math.cos(angulo);
+        const novoLng = eq.coords[1] + raio * Math.sin(angulo);
+        if (!existeVizinhoPerto(indiceEspacial, novoLat, novoLng)) {
+            registrarNoIndice(indiceEspacial, novoLat, novoLng);
+            return [novoLat, novoLng];
+        }
+    }
+
+    // Se por algum motivo não achou espaço livre (muito improvável), usa a posição original
+    registrarNoIndice(indiceEspacial, lat, lng);
+    return [lat, lng];
 }
 
 function obterBoundsSala(nomeSala, piso) {
@@ -1637,12 +1927,18 @@ function atualizarInterface() {
         return salaSelecionadaAtual ? (noPiso && eq.sala === salaSelecionadaAtual) : false;
     });
 
+    // Índice espacial das posições já ocupadas nesta renderização, usado pra
+    // afastar automaticamente ícones que caem muito perto uns dos outros
+    const indiceEspacialMarcadores = criarIndiceEspacial();
+
     equipamentosExibidosNoMapa.forEach(eq => {
         const camadaDestino = pisoAtual === "Subsolo" ? camadaSubsolo :
                               pisoAtual === "Térreo" ? camadaTerreo :
                               pisoAtual === "Piso 1" ? camadaPiso1 : camadaPiso2;
 
-        const marker = L.marker(eq.coords, {
+        const posicaoExibicao = calcularPosicaoSemSobreposicao(eq, indiceEspacialMarcadores);
+
+        const marker = L.marker(posicaoExibicao, {
             icon: criarIconeEquipamento(eq.tipo),
             draggable: true
         }).addTo(camadaDestino);
@@ -1688,9 +1984,13 @@ function atualizarInterface() {
     document.getElementById('count-filtro-imp').textContent = listaEquipamentos.filter(e => e.tipo === 'Impressora').length;
     document.getElementById('count-filtro-nob').textContent = listaEquipamentos.filter(e => e.tipo === 'Nobreak').length;
 
-    // 🌟 FILTRA OS ITENS DA TABELA POR TIPO E BUSCA TEXTUAL
+    // 🌟 ATUALIZA OPÇÕES DO FILTRO DE SETOR (preservando a seleção atual)
+    atualizarOpcoesFiltroSetor();
+
+    // 🌟 FILTRA OS ITENS DA TABELA POR TIPO, SETOR E BUSCA TEXTUAL
     const equipamentosFiltradosTabela = listaEquipamentos.filter(eq => {
         if (filtroTipoSelecionado !== 'todos' && eq.tipo !== filtroTipoSelecionado) return false;
+        if (filtroSetorSelecionado !== 'todos' && obterChaveSetor(eq) !== filtroSetorSelecionado) return false;
         if (textoBuscaTabela) {
             const buscaCompleta = `${eq.patrimônio} ${eq.nome} ${eq.tipo} ${eq.modelo} ${eq.piso} ${eq.sala}`.toLowerCase();
             if (!buscaCompleta.includes(textoBuscaTabela)) return false;
@@ -1742,8 +2042,368 @@ function atualizarInterface() {
         }
     }
 
+    // 🌟 ATUALIZA O PAINEL DE RESUMO POR SETOR
+    atualizarResumoPorSetor();
+    atualizarRelatorios();
+
     atualizarBadgeContadorManut();
 }
+
+// Chave única de setor: combina Piso + Sala, já que salas com o mesmo nome podem existir em pisos diferentes
+function obterChaveSetor(eq) {
+    const sala = eq.sala || 'Fora de Sala / Corredor';
+    const piso = eq.piso || '-';
+    return `${piso}||${sala}`;
+}
+
+function atualizarOpcoesFiltroSetor() {
+    const select = document.getElementById('filtro-setor-select');
+    if (!select) return;
+
+    const valorAtual = select.value || 'todos';
+
+    // Monta lista de setores únicos (Piso + Sala) a partir dos equipamentos cadastrados
+    const mapaSetores = new Map();
+    listaEquipamentos.forEach(eq => {
+        const chave = obterChaveSetor(eq);
+        if (!mapaSetores.has(chave)) {
+            mapaSetores.set(chave, { piso: eq.piso || '-', sala: eq.sala || 'Fora de Sala / Corredor' });
+        }
+    });
+
+    const setoresOrdenados = Array.from(mapaSetores.entries()).sort((a, b) => {
+        if (a[1].piso !== b[1].piso) return a[1].piso.localeCompare(b[1].piso);
+        return a[1].sala.localeCompare(b[1].sala);
+    });
+
+    select.innerHTML = '<option value="todos">Todos os Setores</option>';
+    setoresOrdenados.forEach(([chave, info]) => {
+        const opt = document.createElement('option');
+        opt.value = chave;
+        opt.textContent = `${info.sala} (${info.piso})`;
+        select.appendChild(opt);
+    });
+
+    // Restaura a seleção anterior, se ainda existir na lista
+    if ([...select.options].some(o => o.value === valorAtual)) {
+        select.value = valorAtual;
+    } else {
+        select.value = 'todos';
+        filtroSetorSelecionado = 'todos';
+    }
+}
+
+function filtrarPorSetor(chaveSetor) {
+    filtroSetorSelecionado = chaveSetor;
+    const select = document.getElementById('filtro-setor-select');
+    if (select) select.value = chaveSetor;
+    atualizarInterface();
+
+    mudarAba('mapa');
+    setTimeout(() => {
+        const painelTabela = document.querySelector('.painel-tabela');
+        if (painelTabela) painelTabela.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+}
+
+function atualizarResumoPorSetor() {
+    const corpo = document.getElementById('corpo-tabela-resumo-setor');
+    if (!corpo) return;
+
+    // Agrupa equipamentos (não em manutenção) por Piso+Sala e conta por tipo
+    const mapaResumo = new Map();
+    listaEquipamentos.forEach(eq => {
+        if (eq.emManutencao) return;
+        const chave = obterChaveSetor(eq);
+        if (!mapaResumo.has(chave)) {
+            mapaResumo.set(chave, {
+                piso: eq.piso || '-',
+                sala: eq.sala || 'Fora de Sala / Corredor',
+                Computador: 0, Monitor: 0, Impressora: 0, Nobreak: 0
+            });
+        }
+        const registro = mapaResumo.get(chave);
+        if (registro.hasOwnProperty(eq.tipo)) {
+            registro[eq.tipo]++;
+        }
+    });
+
+    const linhas = Array.from(mapaResumo.entries())
+        .map(([chave, dados]) => {
+            const total = dados.Computador + dados.Monitor + dados.Impressora + dados.Nobreak;
+            return { chave, ...dados, total };
+        })
+        .filter(l => l.total > 0)
+        .sort((a, b) => b.total - a.total);
+
+    corpo.innerHTML = '';
+
+    if (linhas.length === 0) {
+        corpo.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-secondary); padding:20px;">Nenhum ativo cadastrado ainda.</td></tr>`;
+        return;
+    }
+
+    linhas.forEach(l => {
+        const tr = document.createElement('tr');
+        tr.className = 'linha-resumo-setor';
+        tr.title = 'Clique para filtrar a tabela por este setor';
+        tr.onclick = () => filtrarPorSetor(l.chave);
+        tr.innerHTML = `
+            <td><b>${l.sala}</b></td>
+            <td>${l.piso}</td>
+            <td>${l.Computador || '-'}</td>
+            <td>${l.Monitor || '-'}</td>
+            <td>${l.Impressora || '-'}</td>
+            <td>${l.Nobreak || '-'}</td>
+            <td class="col-total-setor">${l.total}</td>
+        `;
+        corpo.appendChild(tr);
+    });
+}
+
+// ==========================================
+// 5.1 RELATÓRIOS (quantidades, valores e exportação)
+// ==========================================
+function formatarMoeda(valor) {
+    return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+// Monta a lista de equipamentos usada nos relatórios (ignora os que estão
+// em manutenção, já que fisicamente não estão no setor cadastrado agora)
+function obterEquipamentosParaRelatorio() {
+    return listaEquipamentos.filter(eq => !eq.emManutencao);
+}
+
+function atualizarRelatorios() {
+    const equipamentos = obterEquipamentosParaRelatorio();
+
+    // ---- Cards de resumo ----
+    const totalItens = equipamentos.length;
+    const valorTotal = equipamentos.reduce((soma, eq) => soma + (Number(eq.valor) || 0), 0);
+    const semValor = equipamentos.filter(eq => !eq.valor || Number(eq.valor) <= 0).length;
+
+    document.getElementById('rel-stat-total-itens').textContent = totalItens;
+    document.getElementById('rel-stat-valor-total').textContent = formatarMoeda(valorTotal);
+    document.getElementById('rel-stat-sem-valor').textContent = semValor;
+
+    // ---- Totais por Tipo ----
+    const totaisPorTipo = {};
+    Object.keys(CONFIG_TIPOS).forEach(tipo => { totaisPorTipo[tipo] = { qtd: 0, valor: 0 }; });
+    equipamentos.forEach(eq => {
+        if (!totaisPorTipo[eq.tipo]) totaisPorTipo[eq.tipo] = { qtd: 0, valor: 0 };
+        totaisPorTipo[eq.tipo].qtd++;
+        totaisPorTipo[eq.tipo].valor += Number(eq.valor) || 0;
+    });
+
+    const corpoTipos = document.getElementById('corpo-tabela-relatorio-tipos');
+    corpoTipos.innerHTML = '';
+    Object.keys(totaisPorTipo).forEach(tipo => {
+        const t = totaisPorTipo[tipo];
+        const conf = CONFIG_TIPOS[tipo] || { icone: 'fa-box', cor: '#34495e', label: tipo };
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><span class="badge-tipo-tag" style="background-color:${conf.cor};"><i class="fa-solid ${conf.icone}"></i> ${conf.label}</span></td>
+            <td>${t.qtd}</td>
+            <td>${formatarMoeda(t.valor)}</td>
+        `;
+        corpoTipos.appendChild(tr);
+    });
+    const trTotalTipos = document.createElement('tr');
+    trTotalTipos.style.fontWeight = 'bold';
+    trTotalTipos.innerHTML = `<td>Total Geral</td><td>${totalItens}</td><td>${formatarMoeda(valorTotal)}</td>`;
+    corpoTipos.appendChild(trTotalTipos);
+
+    // ---- Quantidade e Valor por Setor ----
+    const mapaSetores = new Map();
+    equipamentos.forEach(eq => {
+        const chave = obterChaveSetor(eq);
+        if (!mapaSetores.has(chave)) {
+            mapaSetores.set(chave, {
+                piso: eq.piso || '-',
+                sala: eq.sala || 'Fora de Sala / Corredor',
+                Computador: 0, Monitor: 0, Impressora: 0, Nobreak: 0,
+                valor: 0
+            });
+        }
+        const registro = mapaSetores.get(chave);
+        if (registro.hasOwnProperty(eq.tipo)) registro[eq.tipo]++;
+        registro.valor += Number(eq.valor) || 0;
+    });
+
+    const linhasSetor = Array.from(mapaSetores.values())
+        .map(d => ({ ...d, total: d.Computador + d.Monitor + d.Impressora + d.Nobreak }))
+        .filter(l => l.total > 0)
+        .sort((a, b) => b.total - a.total);
+
+    const corpoSetores = document.getElementById('corpo-tabela-relatorio-setores');
+    corpoSetores.innerHTML = '';
+    if (linhasSetor.length === 0) {
+        corpoSetores.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-secondary); padding:20px;">Nenhum ativo cadastrado ainda.</td></tr>`;
+    } else {
+        linhasSetor.forEach(l => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><b>${l.sala}</b></td>
+                <td>${l.piso}</td>
+                <td>${l.Computador || '-'}</td>
+                <td>${l.Monitor || '-'}</td>
+                <td>${l.Impressora || '-'}</td>
+                <td>${l.Nobreak || '-'}</td>
+                <td class="col-total-setor">${l.total}</td>
+                <td>${formatarMoeda(l.valor)}</td>
+            `;
+            corpoSetores.appendChild(tr);
+        });
+    }
+
+    // ---- Listagem completa com valores ----
+    const corpoCompleto = document.getElementById('corpo-tabela-relatorio-completo');
+    corpoCompleto.innerHTML = '';
+    if (equipamentos.length === 0) {
+        corpoCompleto.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-secondary); padding:20px;">Nenhum ativo cadastrado ainda.</td></tr>`;
+    } else {
+        equipamentos
+            .slice()
+            .sort((a, b) => (a.patrimônio || '').localeCompare(b.patrimônio || ''))
+            .forEach(eq => {
+                const conf = CONFIG_TIPOS[eq.tipo] || { icone: 'fa-box', cor: '#34495e', label: eq.tipo };
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><b>${eq.patrimônio || '-'}</b></td>
+                    <td>${eq.nome || '-'}</td>
+                    <td><span class="badge-tipo-tag" style="background-color:${conf.cor};"><i class="fa-solid ${conf.icone}"></i> ${conf.label}</span></td>
+                    <td>${eq.modelo || '-'}</td>
+                    <td>${eq.piso || '-'}</td>
+                    <td>${eq.sala || 'Fora de Sala'}</td>
+                    <td>${formatarMoeda(eq.valor)}</td>
+                `;
+                corpoCompleto.appendChild(tr);
+            });
+    }
+}
+
+const ORDEM_TIPOS_EXPORTACAO = ['Computador', 'Monitor', 'Impressora', 'Nobreak'];
+
+function montarLinhasParaExportacao() {
+    return obterEquipamentosParaRelatorio()
+        .slice()
+        .sort((a, b) => {
+            const ia = ORDEM_TIPOS_EXPORTACAO.indexOf(a.tipo);
+            const ib = ORDEM_TIPOS_EXPORTACAO.indexOf(b.tipo);
+            if (ia !== ib) return ia - ib;
+            return (a.patrimônio || '').localeCompare(b.patrimônio || '');
+        })
+        .map(eq => ({
+            'Patrimônio': eq.patrimônio || '-',
+            'Nome': eq.nome || '-',
+            'Tipo': eq.tipo || '-',
+            'Modelo': eq.modelo || '-',
+            'Piso': eq.piso || '-',
+            'Setor': eq.sala || 'Fora de Sala',
+            'Valor (R$)': Number(eq.valor) || 0
+        }));
+}
+
+// Agrupa as linhas por Tipo (na ordem Computador/Monitor/Impressora/Nobreak),
+// calculando a quantidade e o valor somado de cada grupo — usado pra inserir
+// uma linha de subtotal ao final de cada tipo, tanto no Excel quanto no PDF.
+function montarGruposPorTipoParaExportacao() {
+    const linhas = montarLinhasParaExportacao();
+    const grupos = [];
+    let grupoAtual = null;
+
+    linhas.forEach(linha => {
+        if (!grupoAtual || grupoAtual.tipo !== linha['Tipo']) {
+            grupoAtual = { tipo: linha['Tipo'], linhas: [], subtotalValor: 0 };
+            grupos.push(grupoAtual);
+        }
+        grupoAtual.linhas.push(linha);
+        grupoAtual.subtotalValor += linha['Valor (R$)'];
+    });
+
+    return grupos;
+}
+
+function exportarExcel() {
+    const grupos = montarGruposPorTipoParaExportacao();
+    const linhasPlanas = [];
+    let valorTotalGeral = 0;
+    let qtdTotalGeral = 0;
+
+    grupos.forEach(grupo => {
+        grupo.linhas.forEach(l => linhasPlanas.push(l));
+        linhasPlanas.push({
+            'Patrimônio': '',
+            'Nome': '',
+            'Tipo': `SUBTOTAL — ${grupo.tipo.toUpperCase()}`,
+            'Modelo': '',
+            'Piso': '',
+            'Setor': `${grupo.linhas.length} item(ns)`,
+            'Valor (R$)': grupo.subtotalValor
+        });
+        valorTotalGeral += grupo.subtotalValor;
+        qtdTotalGeral += grupo.linhas.length;
+    });
+
+    const planilhaCompleta = XLSX.utils.json_to_sheet(linhasPlanas);
+    XLSX.utils.sheet_add_aoa(planilhaCompleta, [['', '', '', '', '', `TOTAL GERAL (${qtdTotalGeral} itens)`, valorTotalGeral]], { origin: -1 });
+
+    const livro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(livro, planilhaCompleta, 'Inventário Completo');
+
+    const dataHora = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+    XLSX.writeFile(livro, `relatorio_inventario_${dataHora}.xlsx`);
+}
+
+function exportarPDF() {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape' });
+
+    const grupos = montarGruposPorTipoParaExportacao();
+    const corpo = [];
+    let valorTotalGeral = 0;
+    let qtdTotalGeral = 0;
+
+    const estiloSubtotal = { fillColor: [236, 240, 241], textColor: [44, 62, 80], fontStyle: 'bold' };
+
+    grupos.forEach(grupo => {
+        grupo.linhas.forEach(l => {
+            corpo.push([l['Patrimônio'], l['Nome'], l['Tipo'], l['Modelo'], l['Piso'], l['Setor'], formatarMoeda(l['Valor (R$)'])]);
+        });
+        corpo.push([
+            { content: '', styles: estiloSubtotal },
+            { content: '', styles: estiloSubtotal },
+            { content: `Subtotal ${grupo.tipo}`, styles: estiloSubtotal },
+            { content: '', styles: estiloSubtotal },
+            { content: '', styles: estiloSubtotal },
+            { content: `${grupo.linhas.length} item(ns)`, styles: estiloSubtotal },
+            { content: formatarMoeda(grupo.subtotalValor), styles: estiloSubtotal }
+        ]);
+        valorTotalGeral += grupo.subtotalValor;
+        qtdTotalGeral += grupo.linhas.length;
+    });
+
+    doc.setFontSize(14);
+    doc.text('Relatório de Inventário de TI', 14, 15);
+    doc.setFontSize(10);
+    doc.text(`Gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')} — Total de itens: ${qtdTotalGeral} — Valor total: ${formatarMoeda(valorTotalGeral)}`, 14, 22);
+
+    doc.autoTable({
+        startY: 28,
+        head: [['Patrimônio', 'Nome', 'Tipo', 'Modelo', 'Piso', 'Setor', 'Valor (R$)']],
+        body: corpo,
+        styles: { fontSize: 8 },
+        headStyles: { fillColor: [52, 152, 219] },
+        foot: [['', '', '', '', '', `TOTAL GERAL (${qtdTotalGeral} itens)`, formatarMoeda(valorTotalGeral)]],
+        footStyles: { fillColor: [236, 240, 241], textColor: [44, 62, 80], fontStyle: 'bold' }
+    });
+
+    const dataHora = new Date().toLocaleDateString('pt-BR').replace(/\//g, '-');
+    doc.save(`relatorio_inventario_${dataHora}.pdf`);
+}
+
+document.getElementById('btn-exportar-excel').addEventListener('click', exportarExcel);
+document.getElementById('btn-exportar-pdf').addEventListener('click', exportarPDF);
 
 // ==========================================
 // 6. MANUTENÇÃO E REPAROS
@@ -1948,6 +2608,7 @@ document.getElementById('form-equipamento').addEventListener('submit', async fun
     const nomeInput = document.getElementById('input-nome').value.trim();
     const tipoInput = document.getElementById('input-tipo').value;
     const modeloInput = document.getElementById('input-modelo').value.trim();
+    const valorInput = parseFloat(document.getElementById('input-valor').value) || 0;
     const pisoInput = document.getElementById('input-piso').value;
 
     if (listaEquipamentos.some(eq => eq.patrimônio === patrimonioInput)) {
@@ -1963,6 +2624,7 @@ document.getElementById('form-equipamento').addEventListener('submit', async fun
         nome: nomeInput,
         tipo: tipoInput,
         modelo: modeloInput || '-',
+        valor: valorInput,
         piso: pisoInput,
         sala: salaInicial,
         coords: coordsIniciais,
@@ -1994,6 +2656,7 @@ function editarEquipamento(patrimonio) {
     document.getElementById('edit-nome').value = eq.nome;
     document.getElementById('edit-tipo').value = eq.tipo;
     document.getElementById('edit-modelo').value = eq.modelo === '-' ? '' : eq.modelo;
+    document.getElementById('edit-valor').value = eq.valor || '';
     document.getElementById('edit-piso').value = eq.piso;
 
     document.getElementById('modal-editar').classList.add('ativo');
@@ -2032,6 +2695,7 @@ document.getElementById('form-editar').addEventListener('submit', async function
     const nomeNovo = document.getElementById('edit-nome').value.trim();
     const tipoNovo = document.getElementById('edit-tipo').value;
     const modeloNovo = document.getElementById('edit-modelo').value.trim() || '-';
+    const valorNovo = parseFloat(document.getElementById('edit-valor').value) || 0;
 
     registrarHistorico({
         acao: (pisoAntigo !== pisoNovo || salaAntiga !== salaNova) ? 'Movimentação' : 'Edição',
@@ -2045,6 +2709,7 @@ document.getElementById('form-editar').addEventListener('submit', async function
     eq.nome = nomeNovo;
     eq.tipo = tipoNovo;
     eq.modelo = modeloNovo;
+    eq.valor = valorNovo;
     eq.piso = pisoNovo;
 
     await salvarDadosNoServidor();
