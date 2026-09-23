@@ -810,7 +810,7 @@
                     </div>
                     <div class="form-group">
                         <label for="input-valor">Valor (R$)</label>
-                        <input type="number" id="input-valor" step="0.01" min="0" placeholder="Ex: 1500.00">
+                        <input type="text" id="input-valor" inputmode="decimal" placeholder="Ex: 4.170,00">
                     </div>
                     <div class="form-group">
                         <label for="input-piso">Piso Inicial</label>
@@ -819,6 +819,12 @@
                             <option value="Piso 1">Piso 1</option>
                             <option value="Térreo">Térreo</option>
                             <option value="Subsolo">Subsolo</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="input-sala">Sala (opcional)</label>
+                        <select id="input-sala">
+                            <option value="">Deixar sem sala definida</option>
                         </select>
                     </div>
                     <button type="submit" class="btn-salvar"><i class="fa-solid fa-floppy-disk"></i> Adicionar ao Mapa</button>
@@ -1223,7 +1229,7 @@
             </div>
             <div class="form-group">
                 <label for="edit-valor">Valor (R$)</label>
-                <input type="number" id="edit-valor" step="0.01" min="0" placeholder="Ex: 1500.00">
+                <input type="text" id="edit-valor" inputmode="decimal" placeholder="Ex: 4.170,00">
             </div>
             <div class="form-group">
                 <label for="edit-piso">Piso</label>
@@ -1232,6 +1238,12 @@
                     <option value="Piso 1">Piso 1</option>
                     <option value="Térreo">Térreo</option>
                     <option value="Subsolo">Subsolo</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="edit-sala">Sala</label>
+                <select id="edit-sala">
+                    <option value="">Manter sem alterar a sala</option>
                 </select>
             </div>
             <button type="submit" class="btn-salvar"><i class="fa-solid fa-floppy-disk"></i> Salvar Alterações</button>
@@ -1381,7 +1393,10 @@ let filtroTipoSelecionado = 'todos';
 let textoBuscaTabela = '';
 let filtroSetorSelecionado = 'todos';
 
+let statusSincronizacaoAtual = 'ok';
+
 function atualizarIndicadorSync(status, texto) {
+    statusSincronizacaoAtual = status;
     const el = document.getElementById('indicador-sync');
     if (!el) return;
     el.className = 'status-sync ' + (status === 'ok' ? 'sync-ok' : status === 'salvando' ? 'sync-salvando' : 'sync-erro');
@@ -1390,10 +1405,23 @@ function atualizarIndicadorSync(status, texto) {
                    `<i class="fa-solid fa-triangle-exclamation"></i> ${texto || 'Erro ao sincronizar'}`;
 }
 
+// fetch() do navegador não tem timeout por padrão: se a conexão cair no meio
+// do caminho (PC hibernou, rede oscilou, etc.), a requisição fica pendurada
+// PRA SEMPRE, sem nunca dar certo nem erro. Isso travava a fila de
+// salvamento indefinidamente. Esse wrapper cancela a requisição sozinho se
+// ela demorar demais, garantindo que sempre dê erro em vez de travar.
+function fetchComTimeout(url, opcoes = {}, timeoutMs = 15000) {
+    const controlador = new AbortController();
+    const idTimeout = setTimeout(() => controlador.abort(), timeoutMs);
+
+    return fetch(url, { ...opcoes, signal: controlador.signal })
+        .finally(() => clearTimeout(idTimeout));
+}
+
 async function carregarDadosDoServidor() {
     atualizarIndicadorSync('salvando', 'Carregando dados...');
     try {
-        const res = await fetch('api.php?t=' + Date.now());
+        const res = await fetchComTimeout('api.php?t=' + Date.now());
         if (!res.ok) throw new Error('Falha ao conectar na API');
         const dados = await res.json();
 
@@ -1442,7 +1470,7 @@ async function salvarDadosNoServidor() {
     atualizarIndicadorSync('salvando', 'Salvando no servidor...');
 
     try {
-        const res = await fetch('api.php', {
+        const res = await fetchComTimeout('api.php', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1467,6 +1495,23 @@ async function salvarDadosNoServidor() {
 
 document.getElementById('btn-recarregar-dados').addEventListener('click', function () {
     carregarDadosDoServidor();
+});
+
+// Reconexão automática: se o status ficar "erro" (offline), tenta se
+// reconectar sozinho a cada 20s, sem precisar que a pessoa clique em nada.
+// Também tenta assim que a aba volta a ficar visível (ex: você deixou
+// minimizada e voltou), já que é exatamente quando esse tipo de conexão
+// perdida costuma aparecer.
+setInterval(function () {
+    if (statusSincronizacaoAtual === 'erro') {
+        carregarDadosDoServidor();
+    }
+}, 20000);
+
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && statusSincronizacaoAtual === 'erro') {
+        carregarDadosDoServidor();
+    }
 });
 
 // Eventos de Filtro da Tabela
@@ -1532,6 +1577,10 @@ function iniciarMapa() {
     L.control.layers(pavimentos, null, { collapsed: false }).addTo(map);
 
     definirSalas();
+
+    // Preenche os seletores de sala dos formulários de cadastro/edição
+    // agora que a lista de salas já existe
+    popularSelectSalas('input-sala', document.getElementById('input-piso').value, '', 'Deixar sem sala definida');
 
     salas.forEach(s => {
         s.poligono.bindTooltip(s.nome, { permanent: true, direction: 'center', className: 'sala-label' });
@@ -1656,6 +1705,35 @@ function obterBoundsSala(nomeSala, piso) {
     return { minLat, maxLat, minLng, maxLng, salaObj };
 }
 
+// Devolve o ponto central (aproximado) de uma sala, usado pra já colocar um
+// equipamento novo (ou movido pela edição) direto no meio da sala escolhida,
+// sem precisar arrastar manualmente no mapa depois.
+function obterCentroSala(nomeSala, piso) {
+    const bounds = obterBoundsSala(nomeSala, piso);
+    if (!bounds) return null;
+    return [Math.round((bounds.minLat + bounds.maxLat) / 2), Math.round((bounds.minLng + bounds.maxLng) / 2)];
+}
+
+// Preenche um <select> de sala com as salas daquele piso (em ordem
+// alfabética), opcionalmente já marcando uma sala como selecionada.
+function popularSelectSalas(idSelect, piso, salaSelecionada, textoPlaceholder) {
+    const select = document.getElementById(idSelect);
+    if (!select) return;
+
+    select.innerHTML = `<option value="">${textoPlaceholder}</option>`;
+
+    salas
+        .filter(s => s.piso === piso)
+        .sort((a, b) => a.nome.localeCompare(b.nome))
+        .forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.nome;
+            opt.textContent = s.nome;
+            if (s.nome === salaSelecionada) opt.selected = true;
+            select.appendChild(opt);
+        });
+}
+
 function autoAlinharEquipamentosDaSala(nomeSala, piso) {
     const bounds = obterBoundsSala(nomeSala, piso);
     if (!bounds) return;
@@ -1759,10 +1837,11 @@ function definirSalas() {
         { nome: "Exames 1", piso: "Térreo", poligono: L.polygon([[520, 100], [600, 100], [600, 200], [520, 200]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.25 }).addTo(camadaTerreo) },
         { nome: "Elo 2", piso: "Térreo", poligono: L.polygon([[430, 100], [510, 100], [510, 200], [430, 200]], { color: '#8e44ad', fillColor: '#9b59b6', fillOpacity: 0.25 }).addTo(camadaTerreo) },
         { nome: "Exames 4", piso: "Térreo", poligono: L.polygon([[340, 100], [420, 100], [420, 200], [340, 200]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.25 }).addTo(camadaTerreo) },
-        { nome: "Cuid. Cirúrgico 1", piso: "Térreo", poligono: L.polygon([[550, 260], [630, 260], [630, 360], [550, 360]], { color: '#e67e22', fillColor: '#f39c12', fillOpacity: 0.25 }).addTo(camadaTerreo) },
-        { nome: "Laser 2", piso: "Térreo", poligono: L.polygon([[460, 260], [540, 260], [540, 360], [460, 360]], { color: '#c0392b', fillColor: '#e74c3c', fillOpacity: 0.25 }).addTo(camadaTerreo) },
-        { nome: "Exames 3", piso: "Térreo", poligono: L.polygon([[370, 260], [450, 260], [450, 360], [370, 360]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.25 }).addTo(camadaTerreo) },
-        { nome: "Sala sem Nome", piso: "Térreo", poligono: L.polygon([[280, 260], [360, 260], [360, 360], [280, 360]], { color: '#7f8c8d', fillColor: '#95a5a6', fillOpacity: 0.25 }).addTo(camadaTerreo) },
+        { nome: "Cuid. Cirúrgico 1", piso: "Térreo", poligono: L.polygon([[610, 260], [690, 260], [690, 360], [610, 360]], { color: '#e67e22', fillColor: '#f39c12', fillOpacity: 0.25 }).addTo(camadaTerreo) },
+        { nome: "Laser 2", piso: "Térreo", poligono: L.polygon([[520, 260], [600, 260], [600, 360], [520, 360]], { color: '#c0392b', fillColor: '#e74c3c', fillOpacity: 0.25 }).addTo(camadaTerreo) },
+        { nome: "Exames 3", piso: "Térreo", poligono: L.polygon([[430, 260], [510, 260], [510, 360], [430, 360]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.25 }).addTo(camadaTerreo) },
+        { nome: "Sala sem Nome", piso: "Térreo", poligono: L.polygon([[340, 260], [420, 260], [420, 360], [340, 360]], { color: '#7f8c8d', fillColor: '#95a5a6', fillOpacity: 0.25 }).addTo(camadaTerreo) },
+        { nome: "CPD", piso: "Térreo", poligono: L.polygon([[245, 260], [335, 260], [335, 360], [245, 360]], { color: '#27ae60', fillColor: '#2ecc71', fillOpacity: 0.25 }).addTo(camadaTerreo) },
         { nome: "Consultório 1", piso: "Térreo", poligono: L.polygon([[710, 640], [780, 640], [780, 740], [710, 740]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.25 }).addTo(camadaTerreo) },
         { nome: "Consultório 2", piso: "Térreo", poligono: L.polygon([[630, 640], [700, 640], [700, 740], [630, 740]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.25 }).addTo(camadaTerreo) },
         { nome: "Consultório 3", piso: "Térreo", poligono: L.polygon([[550, 640], [620, 640], [620, 740], [550, 740]], { color: '#16a085', fillColor: '#1abc9c', fillOpacity: 0.25 }).addTo(camadaTerreo) },
@@ -2167,6 +2246,40 @@ function atualizarResumoPorSetor() {
 function formatarMoeda(valor) {
     return (valor || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
+
+// Aplica máscara de valor no padrão brasileiro (ponto = milhar, vírgula = decimal)
+// enquanto a pessoa digita, tipo um campo de dinheiro de app de banco.
+function aplicarMascaraMoeda(valorDigitado) {
+    let somenteDigitos = valorDigitado.replace(/\D/g, '');
+    if (somenteDigitos === '') return '';
+    somenteDigitos = somenteDigitos.replace(/^0+(?=\d)/, '');
+    somenteDigitos = somenteDigitos.padStart(3, '0');
+    const centavos = somenteDigitos.slice(-2);
+    const inteiros = somenteDigitos.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    return `${inteiros},${centavos}`;
+}
+
+// Converte o texto digitado no padrão brasileiro ("4.170,00") para um
+// número comum ("4170.00") usado internamente e salvo nos dados.
+function parseValorMoeda(texto) {
+    if (!texto) return 0;
+    const limpo = String(texto).replace(/\./g, '').replace(',', '.');
+    return parseFloat(limpo) || 0;
+}
+
+// Converte um número comum (guardado nos dados) para o texto no padrão
+// brasileiro, pra preencher o campo quando abre a edição de um equipamento.
+function formatarValorParaCampo(numero) {
+    if (!numero) return '';
+    return Number(numero).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+document.getElementById('input-valor').addEventListener('input', function (e) {
+    e.target.value = aplicarMascaraMoeda(e.target.value);
+});
+document.getElementById('edit-valor').addEventListener('input', function (e) {
+    e.target.value = aplicarMascaraMoeda(e.target.value);
+});
 
 // Monta a lista de equipamentos usada nos relatórios (ignora os que estão
 // em manutenção, já que fisicamente não estão no setor cadastrado agora)
@@ -2601,6 +2714,14 @@ document.getElementById('form-retorno-manutencao').addEventListener('submit', as
 // ==========================================
 // 7. CADASTRO / EDIÇÃO / EXCLUSÃO
 // ==========================================
+document.getElementById('input-piso').addEventListener('change', function () {
+    popularSelectSalas('input-sala', this.value, '', 'Deixar sem sala definida');
+});
+
+document.getElementById('edit-piso').addEventListener('change', function () {
+    popularSelectSalas('edit-sala', this.value, '', 'Manter sem alterar a sala');
+});
+
 document.getElementById('form-equipamento').addEventListener('submit', async function (e) {
     e.preventDefault();
 
@@ -2608,16 +2729,28 @@ document.getElementById('form-equipamento').addEventListener('submit', async fun
     const nomeInput = document.getElementById('input-nome').value.trim();
     const tipoInput = document.getElementById('input-tipo').value;
     const modeloInput = document.getElementById('input-modelo').value.trim();
-    const valorInput = parseFloat(document.getElementById('input-valor').value) || 0;
+    const valorInput = parseValorMoeda(document.getElementById('input-valor').value);
     const pisoInput = document.getElementById('input-piso').value;
+    const salaEscolhida = document.getElementById('input-sala').value;
 
     if (listaEquipamentos.some(eq => eq.patrimônio === patrimonioInput)) {
         alert('Já existe um equipamento com esse número de patrimônio.');
         return;
     }
 
-    const coordsIniciais = [500, 500];
-    const salaInicial = identificarSala(coordsIniciais[0], coordsIniciais[1], pisoInput);
+    // Se uma sala foi escolhida no formulário, coloca o equipamento já no
+    // centro dela. Senão, cai no comportamento antigo (posição genérica,
+    // que normalmente fica "Fora de Sala" até ser arrastado no mapa).
+    let coordsIniciais = [500, 500];
+    let salaInicial = identificarSala(coordsIniciais[0], coordsIniciais[1], pisoInput);
+
+    if (salaEscolhida) {
+        const centro = obterCentroSala(salaEscolhida, pisoInput);
+        if (centro) {
+            coordsIniciais = centro;
+            salaInicial = salaEscolhida;
+        }
+    }
 
     const novoEquipamento = {
         patrimônio: patrimonioInput,
@@ -2645,6 +2778,7 @@ document.getElementById('form-equipamento').addEventListener('submit', async fun
 
     selecionarSala(salaInicial);
     this.reset();
+    popularSelectSalas('input-sala', document.getElementById('input-piso').value, '', 'Deixar sem sala definida');
 });
 
 function editarEquipamento(patrimonio) {
@@ -2656,8 +2790,9 @@ function editarEquipamento(patrimonio) {
     document.getElementById('edit-nome').value = eq.nome;
     document.getElementById('edit-tipo').value = eq.tipo;
     document.getElementById('edit-modelo').value = eq.modelo === '-' ? '' : eq.modelo;
-    document.getElementById('edit-valor').value = eq.valor || '';
+    document.getElementById('edit-valor').value = formatarValorParaCampo(eq.valor);
     document.getElementById('edit-piso').value = eq.piso;
+    popularSelectSalas('edit-sala', eq.piso, eq.sala, 'Manter sem alterar a sala');
 
     document.getElementById('modal-editar').classList.add('ativo');
 }
@@ -2685,17 +2820,32 @@ document.getElementById('form-editar').addEventListener('submit', async function
     const pisoAntigo = eq.piso;
     const salaAntiga = eq.sala;
     const pisoNovo = document.getElementById('edit-piso').value;
+    const salaEscolhida = document.getElementById('edit-sala').value;
 
     let salaNova = eq.sala;
-    if (pisoNovo !== eq.piso) {
+    let coordsNovos = eq.coords;
+
+    if (salaEscolhida && (salaEscolhida !== eq.sala || pisoNovo !== eq.piso)) {
+        // Sala escolhida explicitamente no formulário: move o equipamento
+        // direto pro centro dela, no piso indicado.
+        const centro = obterCentroSala(salaEscolhida, pisoNovo);
+        if (centro) {
+            coordsNovos = centro;
+            salaNova = salaEscolhida;
+        }
+    } else if (pisoNovo !== eq.piso) {
+        // Nenhuma sala escolhida, mas o piso mudou: mantém o comportamento
+        // antigo de tentar identificar a sala pela posição atual no novo piso.
         salaNova = identificarSala(eq.coords[0], eq.coords[1], pisoNovo);
-        eq.sala = salaNova;
     }
+
+    eq.sala = salaNova;
+    eq.coords = coordsNovos;
 
     const nomeNovo = document.getElementById('edit-nome').value.trim();
     const tipoNovo = document.getElementById('edit-tipo').value;
     const modeloNovo = document.getElementById('edit-modelo').value.trim() || '-';
-    const valorNovo = parseFloat(document.getElementById('edit-valor').value) || 0;
+    const valorNovo = parseValorMoeda(document.getElementById('edit-valor').value);
 
     registrarHistorico({
         acao: (pisoAntigo !== pisoNovo || salaAntiga !== salaNova) ? 'Movimentação' : 'Edição',
